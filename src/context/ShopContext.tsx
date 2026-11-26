@@ -18,6 +18,7 @@ import {
   importPaintingsBackup,
   copyPaintingsToClipboard,
 } from '../utils/artStorage';
+import { mapSupabaseProductToPainting } from '../utils/supabaseProducts';
 
 interface Toast {
   id: string;
@@ -120,7 +121,7 @@ interface ShopContextType {
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [paintings, setPaintings] = useState<Painting[]>(() => {
+  const [localPaintings, setLocalPaintings] = useState<Painting[]>(() => {
     try {
       const saved = localStorage.getItem('paintlabs_user_paintings');
       return saved ? JSON.parse(saved) : PAINTINGS;
@@ -128,19 +129,89 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return PAINTINGS;
     }
   });
+  const [supabasePaintings, setSupabasePaintings] = useState<Painting[]>([]);
 
   // Hydrate from IndexedDB on mount to retrieve any paintings saved beyond the 5MB localStorage quota
   useEffect(() => {
     let isMounted = true;
     loadPaintingsFromStorage().then((loaded) => {
       if (isMounted && loaded && loaded.length > 0) {
-        setPaintings(loaded);
+        setLocalPaintings(loaded);
       }
     }).catch(console.error);
     return () => {
       isMounted = false;
     };
   }, []);
+
+  // Fetch live products from Supabase `products` table on app load
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSupabaseProducts = async () => {
+      try {
+        let { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          ({ data, error } = await supabase.from('products').select('*'));
+        }
+
+        if (error) {
+          console.error('Supabase products fetch failed:', error);
+          return;
+        }
+
+        if (isMounted && Array.isArray(data)) {
+          const mapped = data
+            .map((row, index) => mapSupabaseProductToPainting(row, index))
+            .filter((item): item is Painting => item !== null);
+          setSupabasePaintings(mapped);
+        }
+      } catch (err) {
+        console.error('Supabase products fetch error:', err);
+      }
+    };
+
+    loadSupabaseProducts();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Merge live Supabase products with static/local catalog (avoid duplicates sharing the same title)
+  const paintings = useMemo<Painting[]>(() => {
+    if (supabasePaintings.length === 0) return localPaintings;
+
+    const supabaseForYouTitles = new Set(
+      supabasePaintings
+        .filter((sp) => sp.showInForYou === true)
+        .map((sp) => sp.name.trim().toLowerCase())
+    );
+
+    const existingTitles = new Set(
+      localPaintings.map((p) => p.name.trim().toLowerCase())
+    );
+
+    const uniqueSupabase = supabasePaintings.filter((sp) => {
+      const normalized = sp.name.trim().toLowerCase();
+      if (!normalized || existingTitles.has(normalized)) {
+        return false;
+      }
+      existingTitles.add(normalized);
+      return true;
+    });
+
+    const baseWithForYouFlag = localPaintings.map((p) =>
+      supabaseForYouTitles.has(p.name.trim().toLowerCase()) && !p.showInForYou
+        ? { ...p, showInForYou: true }
+        : p
+    );
+
+    return [...uniqueSupabase, ...baseWithForYouFlag];
+  }, [localPaintings, supabasePaintings]);
   const [isAddPaintingOpen, setIsAddPaintingOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
@@ -398,7 +469,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addPainting = (newPainting: Painting) => {
-    setPaintings((prev) => {
+    setLocalPaintings((prev) => {
       const updated = [newPainting, ...prev];
       savePaintingsToStorage(updated).catch(console.error);
       return updated;
@@ -407,7 +478,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deletePainting = (paintingId: string) => {
-    setPaintings((prev) => {
+    setLocalPaintings((prev) => {
       const updated = prev.filter((p) => p.id !== paintingId);
       savePaintingsToStorage(updated).catch(console.error);
       return updated;
@@ -436,23 +507,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await fetch('/api/paintings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(paintings),
+        body: JSON.stringify(localPaintings),
       });
       if (res.ok) {
-        showToast('Saved to Server', `Permanently locked ${paintings.length} artwork(s) to project storage.`);
+        showToast('Saved to Server', `Permanently locked ${localPaintings.length} artwork(s) to project storage.`);
         return true;
       }
     } catch (e) {
       console.error('Failed to sync to server', e);
     }
-    showToast('Saved to Device', `Safely stored ${paintings.length} artwork(s) in IndexedDB.`);
+    showToast('Saved to Device', `Safely stored ${localPaintings.length} artwork(s) in IndexedDB.`);
     return false;
   };
 
   const importPaintingsFile = async (file: File): Promise<boolean> => {
     try {
       const imported = await importPaintingsBackup(file);
-      setPaintings(imported);
+      setLocalPaintings(imported);
       await savePaintingsToStorage(imported);
       showToast('Paintings Restored', `Successfully loaded ${imported.length} artworks.`);
       return true;

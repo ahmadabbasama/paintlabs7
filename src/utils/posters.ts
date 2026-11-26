@@ -14,7 +14,7 @@ export const POSTER_VARIANT: ProductVariant = {
 };
 
 export function isPosterPainting(painting?: Pick<Painting, 'category'> | null): boolean {
-  return !!painting && String(painting.category).toLowerCase() === POSTER_CATEGORY;
+  return !!painting && String(painting.category).trim().toLowerCase() === POSTER_CATEGORY;
 }
 
 // Paper finishes for posters. The customer must choose one; nothing is pre-selected.

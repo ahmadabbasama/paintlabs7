@@ -45,9 +45,13 @@ const StorefrontContent: React.FC = () => {
     if (selectedCategory === 'wishlist') {
       list = list.filter((p) => wishlist.includes(p.id));
     } else if (selectedCategory === 'all') {
-      list = list.filter((p) => FOR_YOU_NAMES.includes(p.name.trim().toLowerCase()));
+      list = list.filter(
+        (p) =>
+          FOR_YOU_NAMES.includes(p.name.trim().toLowerCase()) ||
+          p.showInForYou === true
+      );
     } else {
-      list = list.filter((p) => p.category === selectedCategory);
+      list = list.filter((p) => p.category.trim().toLowerCase() === selectedCategory);
     }
 
     if (inStockOnly) {

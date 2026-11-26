@@ -50,7 +50,7 @@ const ELIGIBLE_KEYWORDS: string[] = [
 export function hasColorFamilyFeature(painting?: Painting | { name?: string; colorFamily?: string[] } | null): boolean {
   if (!painting) return false;
   // Posters never have colour families.
-  if ('category' in painting && String(painting.category).toLowerCase() === 'posters') return false;
+  if ('category' in painting && String(painting.category).trim().toLowerCase() === 'posters') return false;
   if (Array.isArray(painting.colorFamily) && painting.colorFamily.length > 0) {
     return true;
   }

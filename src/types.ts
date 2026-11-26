@@ -41,6 +41,7 @@ export interface Painting {
   variants: ProductVariant[];
   reviews: ProductReview[];
   colorFamily?: string[];
+  showInForYou?: boolean;
 }
 
 export interface CustomCommission {

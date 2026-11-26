@@ -80,7 +80,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           <div className="absolute top-3 left-3 text-[11px] font-medium tracking-wide text-stone-800 bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-sm">
             {product.tag}
           </div>
-        ) : isColorEligible ? (
+        ) : !isPoster && isColorEligible ? (
           <div className="absolute top-3 left-3 text-[11px] font-medium tracking-wide text-stone-900 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-sm flex items-center gap-1 shadow-2xs">
             <Palette className="w-3 h-3 text-stone-700" />
             <span>7 Colors</span>
@@ -135,7 +135,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         </p>
 
         {/* Color Family Swatch Preview */}
-        {isColorEligible && (
+        {!isPoster && isColorEligible && (
           <div className="flex items-center gap-1.5 py-0.5">
             <div className="flex items-center -space-x-1 shrink-0">
               {COLOR_FAMILY_OPTIONS.map((c) => (
